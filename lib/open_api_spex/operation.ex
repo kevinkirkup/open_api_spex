@@ -63,19 +63,25 @@ defmodule OpenApiSpex.Operation do
     |> from_route()
   end
 
-  def from_route(%{plug: plug, plug_opts: opts}) do
-    from_plug(plug, opts)
+  def from_route(%{plug: plug, plug_opts: opts, metadata: metadata}) do
+    from_plug(plug, opts, metadata)
   end
 
-  def from_route(%{plug: plug, opts: opts}) do
-    from_plug(plug, opts)
+  def from_route(%{plug: plug, opts: opts, metadata: metadata}) do
+    from_plug(plug, opts, metadata)
   end
 
   @doc """
   Constructs an Operation struct from plug module and opts
   """
-  @spec from_plug(module, opts :: any) :: t | nil
-  def from_plug(plug, opts) do
+  @spec from_plug(module, opts :: any, metadata :: map) :: t | nil
+  def from_plug(plug, opts, %{operation_id: operation_id}) do
+    opts
+    |> plug.open_api_operation()
+    |> Map.put("operationId", operation_id)
+  end
+
+  def from_plug(plug, opts, _metadata) do
     plug.open_api_operation(opts)
   end
 
