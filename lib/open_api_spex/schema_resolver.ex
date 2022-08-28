@@ -209,14 +209,7 @@ defmodule OpenApiSpex.SchemaResolver do
     {%Reference{"$ref": "#/components/schemas/#{title}"}, new_schemas}
   end
 
-  defp resolve_schema_modules_from_schema(schema = %Schema{title: title}, schemas) do
-    schemas =
-      if is_nil(title) do
-        schemas
-      else
-        Map.put(schemas, title, schema)
-      end
-
+  defp resolve_schema_modules_from_schema(schema = %Schema{}, schemas) do
     {all_of, schemas} = resolve_schema_modules_from_schema(schema.allOf, schemas)
     {one_of, schemas} = resolve_schema_modules_from_schema(schema.oneOf, schemas)
     {any_of, schemas} = resolve_schema_modules_from_schema(schema.anyOf, schemas)
