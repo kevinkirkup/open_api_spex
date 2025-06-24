@@ -134,6 +134,25 @@ defmodule OpenApiSpex.SchemaResolverTest do
               }
             }
           }
+        },
+        "/api/appointsments" => %PathItem{
+          post: %Operation{
+            description: "Create a new pet appointment",
+            operationId: "PetAppointmentController.create",
+            requestBody: %RequestBody{
+              required: true,
+              content: %{
+                "application/json" => %MediaType{
+                  schema: OpenApiSpexTest.Schemas.PetAppointmentRequest
+                }
+              }
+            },
+            responses: %{
+              201 => %Response{
+                description: "Appointment created"
+              }
+            }
+          }
         }
       }
     }
@@ -149,6 +168,16 @@ defmodule OpenApiSpex.SchemaResolverTest do
     assert %Reference{"$ref": "#/components/schemas/UserRequest"} =
              resolved.paths["/api/users"].post.requestBody.content["application/json"].schema
 
+    assert "#/components/schemas/TrainingAppointment" =
+             resolved.components.schemas["PetAppointmentRequest"].discriminator.mapping[
+               "training"
+             ]
+
+    assert "#/components/schemas/GroomingAppointment" =
+             resolved.components.schemas["PetAppointmentRequest"].discriminator.mapping[
+               "grooming"
+             ]
+
     assert %{
              "UserRequest" => %Schema{},
              "UserResponse" => %Schema{},
@@ -156,7 +185,10 @@ defmodule OpenApiSpex.SchemaResolverTest do
              "UserSubscribeRequest" => %Schema{},
              "PaymentDetails" => %Schema{},
              "CreditCardPaymentDetails" => %Schema{},
-             "DirectDebitPaymentDetails" => %Schema{}
+             "DirectDebitPaymentDetails" => %Schema{},
+             "PetAppointmentRequest" => %Schema{},
+             "TrainingAppointment" => %Schema{},
+             "GroomingAppointment" => %Schema{}
            } = resolved.components.schemas
 
     get_friends = resolved.paths["/api/users/{id}/friends"].get
@@ -193,6 +225,47 @@ defmodule OpenApiSpex.SchemaResolverTest do
     }
 
     assert_raise RuntimeError, "Expected :properties to be a map. Got: Invalid", fn ->
+      OpenApiSpex.resolve_schema_modules(spec)
+    end
+  end
+
+  test "raises error when schema cannot be resolved" do
+    spec = %OpenApi{
+      info: %Info{
+        title: "Test",
+        version: "1.0.0"
+      },
+      paths: %{
+        "/api/users" => %PathItem{
+          get: %Operation{
+            responses: %{
+              200 => %Response{
+                description: "Success",
+                content: %{
+                  "application/json" => %MediaType{
+                    schema: %{}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    error_message = """
+    Cannot resolve schema %{}.
+
+    Must be one of:
+
+    - schema module, or schema struct
+    - list of schema modules, or schema structs
+    - boolean
+    - nil
+    - reference
+    """
+
+    assert_raise RuntimeError, error_message, fn ->
       OpenApiSpex.resolve_schema_modules(spec)
     end
   end

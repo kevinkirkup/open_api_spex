@@ -41,7 +41,10 @@ defmodule OpenApiSpex.Operation2 do
              components,
              opts
            ) do
-      {:ok, conn |> cast_conn(body) |> maybe_replace_body(body, replace_params)}
+      {:ok,
+       conn
+       |> cast_conn(body)
+       |> maybe_replace_body(body, replace_params)}
     end
   end
 

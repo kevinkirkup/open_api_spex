@@ -72,8 +72,21 @@ defmodule OpenApiSpex.CastDiscriminatorTest do
 
   describe "cast/1" do
     test "basics, anyOf", %{schemas: %{dog: dog, wolf: wolf}} do
-      # "animal_type" is the discriminator and the keys need to be strings.
+      # "animal_type" is the discriminator
       input_value = %{@discriminator => "Dog", "breed" => "Pug", "age" => 1}
+      # Create the discriminator schema. Discriminators require a composite
+      # key be provided (`allOf`, `anyOf`, `oneOf`).
+      discriminator_schema =
+        build_discriminator_schema([dog, wolf], :anyOf, String.to_atom(@discriminator), nil)
+
+      # Note: We're expecting to getting atoms back, not strings
+      expected = {:ok, %{age: 1, breed: "Pug", animal_type: "Dog"}}
+
+      assert cast(value: input_value, schema: discriminator_schema) == expected
+    end
+
+    test "basics, anyOf, input with atom keys", %{schemas: %{dog: dog, wolf: wolf}} do
+      input_value = %{String.to_atom(@discriminator) => "Dog", breed: "Pug", age: 1}
       # Create the discriminator schema. Discriminators require a composite
       # key be provided (`allOf`, `anyOf`, `oneOf`).
       discriminator_schema =
@@ -128,6 +141,66 @@ defmodule OpenApiSpex.CastDiscriminatorTest do
       expected = {:ok, %{age: 1, breed: "Corgi", animal_type: "dag"}}
 
       assert cast(value: input_value, schema: discriminator_schema) == expected
+    end
+
+    test "without title", %{schemas: %{dog: dog, cat: cat}} do
+      dog = Map.put(dog, :title, nil)
+      cat = Map.put(cat, :title, nil)
+
+      schemas = %{"Dog" => dog, "Cat" => cat}
+
+      discriminator_schema = %OpenApiSpex.Schema{
+        anyOf: [
+          %OpenApiSpex.Reference{"$ref": "#/components/schemas/Dog"},
+          %OpenApiSpex.Reference{"$ref": "#/components/schemas/Cat"}
+        ],
+        discriminator: %{
+          mapping: %{"dog" => "#/components/schemas/Dog", "cat" => "#/components/schemas/Cat"},
+          propertyName: "animal_type"
+        },
+        type: :object
+      }
+
+      input_value = %{@discriminator => "dog", "breed" => "Corgi", "age" => 1}
+      expected = {:ok, %{age: 1, breed: "Corgi", animal_type: "dog"}}
+      assert cast(value: input_value, schema: discriminator_schema, schemas: schemas) == expected
+    end
+
+    test "valid discriminator mapping but schema does not match", %{
+      schemas: %{dog: dog, wolf: wolf, cat: cat}
+    } do
+      # Wolf has a constraint on its "breed attribute" requiring the breed to have
+      # a minimum length of 5.
+      input_value = %{@discriminator => "Wolf", "breed" => "pug", "age" => 1}
+
+      discriminator_schema =
+        build_discriminator_schema([wolf, dog, cat], :oneOf, String.to_atom(@discriminator), nil)
+
+      assert {:error,
+              [
+                %OpenApiSpex.Cast.Error{
+                  format: nil,
+                  length: 5,
+                  meta: %{},
+                  name: nil,
+                  path: [:breed],
+                  reason: :min_length,
+                  type: nil,
+                  value: "pug"
+                }
+              ]} = cast(value: input_value, schema: discriminator_schema)
+    end
+
+    test "value is not an object", %{schemas: %{dog: dog, wolf: wolf, cat: cat}} do
+      input_value = "this is a string but discriminator only works on objects"
+
+      discriminator_schema =
+        build_discriminator_schema([dog, wolf, cat], :anyOf, String.to_atom(@discriminator), nil)
+
+      assert {:error, [error]} = cast(value: input_value, schema: discriminator_schema)
+      assert error.reason == :invalid_type
+      assert error.type == :object
+      assert error.value == input_value
     end
 
     test "invalid property on discriminator schema", %{
@@ -213,7 +286,7 @@ defmodule OpenApiSpex.CastDiscriminatorTest do
 
       # The format of the error path should be confirmed. This is just a guess.
       assert Error.message_with_path(error) ==
-               "#/data/#{@discriminator}/breed: String length is smaller than minLength: 5"
+               "#/data/breed: String length is smaller than minLength: 5"
     end
 
     if Version.compare(System.version(), "1.10.0") in [:gt, :eq] do

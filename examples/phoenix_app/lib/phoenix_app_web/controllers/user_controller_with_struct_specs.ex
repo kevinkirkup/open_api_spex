@@ -5,7 +5,7 @@ defmodule PhoenixAppWeb.UserControllerWithStructSpecs do
   """
   use PhoenixAppWeb, :controller
   import OpenApiSpex.Operation, only: [parameter: 5, request_body: 4, response: 3]
-  alias OpenApiSpex.Operation
+  alias OpenApiSpex.{Operation, Reference}
   alias PhoenixApp.{Accounts, Accounts.User}
   alias PhoenixAppWeb.Schemas
 
@@ -35,7 +35,8 @@ defmodule PhoenixAppWeb.UserControllerWithStructSpecs do
       description: "List all useres",
       operationId: "UserController.index",
       responses: %{
-        200 => response("User List Response", "application/json", Schemas.UsersResponse)
+        200 => response("User List Response", "application/json", Schemas.UsersResponse),
+        422 => %Reference{"$ref": "#/components/responses/unprocessable_entity"}
       }
     }
   end

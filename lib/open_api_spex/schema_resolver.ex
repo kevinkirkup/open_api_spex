@@ -2,6 +2,8 @@ defmodule OpenApiSpex.SchemaResolver do
   @moduledoc """
   Internal module used to resolve `OpenApiSpex.Schema` structs from atoms.
   """
+  alias OpenApiSpex.Discriminator
+
   alias OpenApiSpex.{
     Components,
     MediaType,
@@ -221,6 +223,9 @@ defmodule OpenApiSpex.SchemaResolver do
     {properties, schemas} =
       resolve_schema_modules_from_schema_properties(schema.properties, schemas)
 
+    {discriminator, schemas} =
+      resolve_schema_modules_from_discriminator(schema.discriminator, schemas)
+
     schema = %{
       schema
       | allOf: all_of,
@@ -229,13 +234,30 @@ defmodule OpenApiSpex.SchemaResolver do
         not: not_schema,
         items: items,
         additionalProperties: additional,
-        properties: properties
+        properties: properties,
+        discriminator: discriminator
     }
 
     {schema, schemas}
   end
 
   defp resolve_schema_modules_from_schema(ref = %Reference{}, schemas), do: {ref, schemas}
+
+  defp resolve_schema_modules_from_schema(schema, _schemas) do
+    error_message = """
+    Cannot resolve schema #{inspect(schema)}.
+
+    Must be one of:
+
+    - schema module, or schema struct
+    - list of schema modules, or schema structs
+    - boolean
+    - nil
+    - reference
+    """
+
+    raise error_message
+  end
 
   defp resolve_schema_modules_from_schema_properties(nil, schemas), do: {nil, schemas}
 
@@ -250,4 +272,25 @@ defmodule OpenApiSpex.SchemaResolver do
   defp resolve_schema_modules_from_schema_properties(properties, _schemas) do
     raise "Expected :properties to be a map. Got: #{inspect(properties)}"
   end
+
+  defp resolve_schema_modules_from_discriminator(
+         discriminator = %Discriminator{mapping: mapping = %{}},
+         schemas
+       ) do
+    {mapping, schemas} =
+      Enum.map_reduce(mapping, schemas, fn
+        {key, module}, schemas when is_atom(module) ->
+          {%Reference{"$ref": path}, schemas} = resolve_schema_modules_from_schema(module, schemas)
+
+          {{key, path}, schemas}
+
+        {key, path}, schemas ->
+          {{key, path}, schemas}
+      end)
+
+    {%{discriminator | mapping: Map.new(mapping)}, schemas}
+  end
+
+  defp resolve_schema_modules_from_discriminator(disciminator, schemas),
+    do: {disciminator, schemas}
 end

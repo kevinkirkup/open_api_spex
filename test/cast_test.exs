@@ -222,6 +222,45 @@ defmodule OpenApiSpec.CastTest do
       assert Error.message_with_path(error) == "#/age: Invalid strict_integer. Got: string"
     end
 
+    test "cast custom error with custom validator" do
+      defmodule EvenInt do
+        require OpenApiSpex
+
+        alias OpenApiSpex.Cast
+
+        OpenApiSpex.schema(%{
+          description: "An even integer",
+          type: :integer,
+          "x-validate": __MODULE__
+        })
+
+        def cast(context = %Cast{value: value}) when is_integer(value) and rem(value, 2) == 0,
+          do: Cast.ok(context)
+
+        def cast(context), do: Cast.error(context, {:custom, "Must be an even integer"})
+      end
+
+      schema = %Schema{type: :object, properties: %{even_number: EvenInt.schema()}}
+
+      assert {:error, errors} = cast(value: %{"even_number" => 1}, schema: schema)
+      assert [error] = errors
+      assert %Error{} = error
+      assert error.reason == :custom
+      assert error.path == [:even_number]
+      assert Error.message_with_path(error) == "#/even_number: Must be an even integer"
+    end
+
+    test "nil value with xxxOf" do
+      schema = %Schema{anyOf: [%Schema{nullable: true, type: :string}]}
+      assert {:ok, nil} = cast(value: nil, schema: schema)
+
+      schema = %Schema{allOf: [%Schema{nullable: true, type: :string}]}
+      assert {:ok, nil} = cast(value: nil, schema: schema)
+
+      schema = %Schema{oneOf: [%Schema{nullable: true, type: :string}]}
+      assert {:ok, nil} = cast(value: nil, schema: schema)
+    end
+
     test "apply defaults configuration" do
       schema = %Schema{
         type: :object,
@@ -239,6 +278,26 @@ defmodule OpenApiSpec.CastTest do
                cast(value: %{}, schema: schema, opts: [apply_defaults: true])
 
       assert {:ok, %{data: "default"}} == cast(value: %{}, schema: schema)
+    end
+  end
+
+  describe "opts" do
+    test "read_write_scope" do
+      schema = %Schema{
+        type: :object,
+        properties: %{
+          id: %Schema{type: :string, readOnly: true},
+          name: %Reference{"$ref": "#/components/schemas/Name"},
+          age: %Schema{type: :integer}
+        },
+        required: [:id, :name, :age]
+      }
+
+      schemas = %{"Name" => %Schema{type: :string, readOnly: true}}
+
+      value = %{"age" => 30}
+      assert {:error, _} = Cast.cast(schema, value, schemas, [])
+      assert {:ok, %{age: 30}} == Cast.cast(schema, value, schemas, read_write_scope: :write)
     end
   end
 
