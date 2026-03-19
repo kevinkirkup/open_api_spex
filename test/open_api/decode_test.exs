@@ -1,6 +1,8 @@
 defmodule OpenApiSpex.OpenApi.DecodeTest do
   use ExUnit.Case
-  use Plug.Test
+
+  import Plug.Test
+  import Plug.Conn
 
   alias OpenApiSpex.OpenApi
 
@@ -174,8 +176,11 @@ defmodule OpenApiSpex.OpenApi.DecodeTest do
       assert %{
                "User" => user_schema,
                "Admin" => admin_schema,
-               "DiscriminatorWithType" => disc_with_type
+               "DiscriminatorWithType" => disc_with_type,
+               "Not" => not_schema
              } = schemas
+
+      assert %OpenApiSpex.Schema{not: %OpenApiSpex.Schema{type: :string}} == not_schema
 
       assert %OpenApiSpex.Schema{
                allOf: [
@@ -189,7 +194,8 @@ defmodule OpenApiSpex.OpenApi.DecodeTest do
                discriminator: %OpenApiSpex.Discriminator{
                  propertyName: "userType",
                  extensions: %{"x-custom-info" => %{"codeowners" => "team-rocker"}}
-               }
+               },
+               required: [:first_name]
              } == admin_schema
 
       assert %OpenApiSpex.Schema{
@@ -204,7 +210,8 @@ defmodule OpenApiSpex.OpenApi.DecodeTest do
                discriminator: %OpenApiSpex.Discriminator{
                  propertyName: "userType"
                },
-               type: "object"
+               type: :object,
+               required: [:first_name]
              } == disc_with_type
 
       assert %OpenApiSpex.Schema{

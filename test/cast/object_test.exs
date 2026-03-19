@@ -21,6 +21,16 @@ defmodule OpenApiSpex.ObjectTest do
       assert map == %{one: "one"}
     end
 
+    defmodule User2 do
+      defstruct [:name]
+    end
+
+    test "input map can be a struct" do
+      schema = %Schema{type: :object, properties: %{name: %Schema{type: :string}}}
+      assert {:ok, map} = cast(value: %User2{name: "bob"}, schema: schema)
+      assert map == %User2{name: "bob"}
+    end
+
     test "converting string keys to atom keys when properties are defined" do
       schema = %Schema{
         type: :object,
@@ -132,6 +142,18 @@ defmodule OpenApiSpex.ObjectTest do
       assert cast(value: %{}, schema: schema) == {:ok, %{name: "Rubi"}}
       assert cast(value: %{"name" => "Jane"}, schema: schema) == {:ok, %{name: "Jane"}}
       assert cast(value: %{name: "Robin"}, schema: schema) == {:ok, %{name: "Robin"}}
+    end
+
+    test "fields with default values and apply_defaults config" do
+      schema = %Schema{
+        type: :object,
+        properties: %{name: %Schema{type: :string, default: "Rubi"}}
+      }
+
+      assert cast(value: %{}, schema: schema, opts: [apply_defaults: true]) ==
+               {:ok, %{name: "Rubi"}}
+
+      assert cast(value: %{}, schema: schema, opts: [apply_defaults: false]) == {:ok, %{}}
     end
 
     test "explicitly passing nil for fields with default values (not nullable)" do
@@ -325,6 +347,31 @@ defmodule OpenApiSpex.ObjectTest do
       assert user == %User{name: "Name"}
     end
 
+    test "casts to struct even if input was a different struct" do
+      schema = %Schema{
+        type: :object,
+        "x-struct": User,
+        properties: %{
+          name: %Schema{type: :string}
+        }
+      }
+
+      assert {:ok, user} = cast(value: %User2{name: "Name"}, schema: schema)
+      assert user == %User{name: "Name"}
+    end
+
+    test "original struct is preserved if no x-struct is specified" do
+      schema = %Schema{
+        type: :object,
+        properties: %{
+          name: %Schema{type: :string}
+        }
+      }
+
+      assert {:ok, user} = cast(value: %User{name: "Name"}, schema: schema)
+      assert user == %User{name: "Name"}
+    end
+
     test "validates maxProperties" do
       schema = %Schema{
         type: :object,
@@ -368,7 +415,11 @@ defmodule OpenApiSpex.ObjectTest do
         }
       }
 
-      assert {:error, [error1, error2]} = cast(value: %{"age" => 0, "name" => "N"}, schema: schema)
+      assert {:error, [_error1, _error2] = errors} =
+               cast(value: %{"age" => 0, "name" => "N"}, schema: schema)
+
+      error1 = Enum.find(errors, &(&1.path == [:age]))
+      error2 = Enum.find(errors, &(&1.path == [:name]))
 
       assert %Error{} = error1
       assert error1.reason == :minimum

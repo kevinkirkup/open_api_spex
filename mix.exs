@@ -2,20 +2,27 @@ defmodule OpenApiSpex.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/open-api-spex/open_api_spex"
-  @version "3.12.0"
+  @version "3.22.2"
 
   def project do
     [
       app: :open_api_spex,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       consolidate_protocols: Mix.env() != :test,
       package: package(),
       deps: deps(),
       docs: docs(),
-      dialyzer: dialyzer()
+      dialyzer: dialyzer(),
+      test_coverage: [
+        ignore_modules: [
+          ~r/OpenApiSpexTest\./,
+          ~r/OpenApiSpex.Extendable\./,
+          ~r/Poison.Encoder\./
+        ]
+      ]
     ]
   end
 
@@ -43,7 +50,8 @@ defmodule OpenApiSpex.Mixfile do
       maintainers: [
         "Mike Buhot (m.buhot@gmail.com)",
         "Moxley Stratton (moxley.stratton@gmail.com)",
-        "Pierre Fenoll (pierrefenoll@gmail.com)"
+        "Pierre Fenoll (pierrefenoll@gmail.com)",
+        "Dimitris Zorbas (dimitrisplusplus@gmail.com)"
       ],
       licenses: ["MPL-2.0"],
       links: %{
@@ -59,10 +67,11 @@ defmodule OpenApiSpex.Mixfile do
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:jason, "~> 1.0", optional: true},
+      {:decimal, "~> 1.0 or ~> 2.0", optional: true},
       {:phoenix, "~> 1.3", only: [:dev, :test]},
       {:plug, "~> 1.7"},
-      {:poison, "~> 4.0 or ~> 5.0", optional: true},
-      {:ymlr, "~> 2.0", optional: true}
+      {:poison, "~> 3.0 or ~> 4.0 or ~> 5.0 or ~> 6.0", optional: true},
+      {:ymlr, "~> 2.0 or ~> 3.0 or ~> 4.0 or ~> 5.0", optional: true}
     ]
   end
 

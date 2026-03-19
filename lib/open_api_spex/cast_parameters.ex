@@ -4,14 +4,12 @@ defmodule OpenApiSpex.CastParameters do
   alias OpenApiSpex.Cast.Error
   alias Plug.Conn
 
-  @default_parsers %{~r/^application\/.*json.*$/ => OpenApi.json_encoder()}
-
   @spec cast(Plug.Conn.t(), Operation.t(), OpenApi.t(), opts :: [OpenApiSpex.cast_opt()]) ::
           {:error, [Error.t()]} | {:ok, Conn.t()}
   def cast(conn, operation, spec, opts \\ []) do
     replace_params = Keyword.get(opts, :replace_params, true)
 
-    with {:ok, params} <- cast_to_params(conn, operation, spec) do
+    with {:ok, params} <- cast_to_params(conn, operation, spec, opts) do
       {:ok, conn |> cast_conn(params) |> maybe_replace_params(params, replace_params)}
     end
   end
@@ -29,11 +27,11 @@ defmodule OpenApiSpex.CastParameters do
   defp maybe_replace_params(conn, _params, false), do: conn
   defp maybe_replace_params(conn, params, true), do: %{conn | params: params}
 
-  defp cast_to_params(conn, operation, %OpenApi{components: components} = spec) do
+  defp cast_to_params(conn, operation, %OpenApi{components: components} = spec, opts) do
     operation
     |> schemas_by_location(components)
     |> Enum.map(fn {location, {schema, parameters_contexts}} ->
-      cast_location(location, schema, parameters_contexts, spec, conn)
+      cast_location(location, schema, parameters_contexts, spec, conn, opts)
     end)
     |> reduce_cast_results()
   end
@@ -116,10 +114,11 @@ defmodule OpenApiSpex.CastParameters do
          schema,
          parameters_contexts,
          %OpenApi{components: components, extensions: ext},
-         conn
+         conn,
+         opts
        ) do
     parsers = Map.get(ext || %{}, "x-parameter-content-parsers", %{})
-    parsers = Map.merge(@default_parsers, parsers)
+    parsers = Map.merge(default_parsers(), parsers)
 
     conn
     |> get_params_by_location(
@@ -129,9 +128,12 @@ defmodule OpenApiSpex.CastParameters do
     |> pre_parse_parameters(parameters_contexts, parsers)
     |> case do
       {:error, _} = err -> err
-      params -> Cast.cast(schema, params, components.schemas)
+      params -> Cast.cast(schema, params, components.schemas, opts)
     end
   end
+
+  defp default_parsers,
+    do: %{~r/^application\/.*json.*$/ => OpenApi.json_encoder()}
 
   defp pre_parse_parameters(%{} = parameters, %{} = parameters_context, parsers) do
     Enum.reduce_while(parameters, Map.new(), fn {key, value}, acc ->
@@ -151,7 +153,7 @@ defmodule OpenApiSpex.CastParameters do
   defp pre_parse_parameter(parameter, %{content_type: content_type}, parsers)
        when is_bitstring(content_type) do
     Enum.reduce_while(parsers, {:ok, parameter}, fn {match, parser}, acc ->
-      if Regex.regex?(match) and Regex.match?(match, content_type) do
+      if is_struct(match, Regex) and Regex.match?(match, content_type) do
         {:halt, decode_parameter(parameter, content_type, parser)}
       else
         {:cont, acc}

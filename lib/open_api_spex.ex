@@ -15,7 +15,7 @@ defmodule OpenApiSpex do
     SchemaResolver
   }
 
-  alias OpenApiSpex.Cast.Error
+  alias OpenApiSpex.Cast.{Error, Utils}
 
   @doc """
   Adds schemas to the api spec from the modules specified in the Operations.
@@ -29,7 +29,17 @@ defmodule OpenApiSpex do
   Then the `UserResponse.schema()` function will be called to load the schema, and
   a `Reference` to the loaded schema will be used in the operation response.
 
-  See `OpenApiSpex.schema` macro for a convenient syntax for defining schema modules.
+  See `OpenApiSpex.schema/2` macro for a convenient syntax for defining schema modules.
+
+  > #### Known Issues {: .info}
+  >
+  > Resolving schemas expects the schema title to be unique for the generated references to be unique.
+  >
+  > For schemas defined with the `OpenApiSpex.schema/2` macro, the title is automatically set
+  > to the last part of module name. For example `MyAppWeb.Schemas.User` will have the title `"User"`,
+  > and `MyAppWeb.OtherSchemas.User` **will also** have the title `"User"` which can lead to conflicts.
+  >
+  > The recommendation is to set the title explicitly in the schema definition.
   """
   @spec resolve_schema_modules(OpenApi.t()) :: OpenApi.t()
   def resolve_schema_modules(spec = %OpenApi{}) do
@@ -72,12 +82,17 @@ defmodule OpenApiSpex do
   @doc """
   Cast and validate a value against a given Schema belonging to a given OpenApi spec.
   """
-  def cast_value(value, schema = %schema_mod{}, spec = %OpenApi{})
+  def cast_value(value, schema = %schema_mod{}, spec = %OpenApi{}, opts \\ [])
       when schema_mod in [Schema, Reference] do
-    OpenApiSpex.Cast.cast(schema, value, spec.components.schemas)
+    OpenApiSpex.Cast.cast(schema, value, spec.components.schemas, opts)
   end
 
-  @type cast_opt :: {:replace_params, boolean()}
+  @type read_write_scope :: nil | :read | :write
+
+  @type cast_opt ::
+          {:replace_params, boolean()}
+          | {:apply_defaults, boolean()}
+          | {:read_write_scope, read_write_scope()}
 
   @spec cast_and_validate(
           OpenApi.t(),
@@ -93,20 +108,8 @@ defmodule OpenApiSpex do
         content_type \\ nil,
         opts \\ []
       ) do
-    content_type = content_type || content_type_from_header(conn)
+    content_type = content_type || Utils.content_type_from_header(conn)
     Operation2.cast(spec, operation, conn, content_type, opts)
-  end
-
-  defp content_type_from_header(conn = %Plug.Conn{}) do
-    case Plug.Conn.get_req_header(conn, "content-type") do
-      [header_value | _] ->
-        header_value
-        |> String.split(";")
-        |> List.first()
-
-      _ ->
-        nil
-    end
   end
 
   @doc """
@@ -259,6 +262,12 @@ defmodule OpenApiSpex do
                 Keyword.merge([module: __MODULE__], unquote(opts))
               )
 
+      unless Module.get_attribute(__MODULE__, :moduledoc) do
+        @moduledoc [@schema.title, @schema.description]
+                   |> Enum.reject(&is_nil/1)
+                   |> Enum.join("\n\n")
+      end
+
       def schema, do: @schema
 
       if Map.get(@schema, :"x-struct") == __MODULE__ do
@@ -399,9 +408,19 @@ defmodule OpenApiSpex do
   @doc """
   Resolve a schema or reference to a schema.
   """
-  @spec resolve_schema(Schema.t() | Reference.t(), Components.schemas_map()) :: Schema.t()
+  @spec resolve_schema(Schema.t() | Reference.t() | module, Components.schemas_map()) ::
+          Schema.t() | nil
   def resolve_schema(%Schema{} = schema, _), do: schema
   def resolve_schema(%Reference{} = ref, schemas), do: Reference.resolve_schema(ref, schemas)
+
+  def resolve_schema(mod, _) when is_atom(mod) do
+    IO.warn("""
+    Unresolved schema module: #{inspect(mod)}.
+    Use OpenApiSpex.resolve_schema_modules/1 to resolve modules ahead of time.
+    """)
+
+    mod.schema()
+  end
 
   @doc """
   Get casted body params from a `Plug.Conn`.

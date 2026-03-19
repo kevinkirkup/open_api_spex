@@ -12,17 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        otp: ['25']
-        elixir: ['1.13']
+        otp: ["26"]
+        elixir: ["1.16"]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         id: beam
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
       - name: PLT cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           key: |
             ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plt
@@ -34,26 +34,57 @@ jobs:
       - run: mix compile --warnings-as-errors
       - run: mix format --check-formatted
       - run: mix credo --strict --all
-      - run: mix dialyzer
-  test:
+      - run: mix dialyzer --format github
+      - run: mix docs --warnings-as-errors
+
+  test_examples:
     runs-on: ubuntu-latest
+    name: Test Sample Applications
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          otp-version: 26
+          elixir-version: 1.16
+      - uses: actions/cache@v4
+        with:
+          key: |
+            ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plug-build
+          restore-keys: |
+            ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-plug-build
+          path: |
+            _build
+
+      - name: run Plug sample app tests
+        working-directory: ./examples/plug_app
+        run: mix do deps.get, test
+
+  test:
+    runs-on: ubuntu-24.04
     name: Test (OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}})
     strategy:
       matrix:
-        otp: ['22', '23', '24', '25']
-        elixir: ['1.10', '1.11', '1.12', '1.13']
+        otp: ["24", "25", "26"]
+        elixir: ["1.14", "1.15", "1.16", "1.18"]
+        # Test each elixir version with lowest and highest compatible OTP version, exclude others
+        # See https://hexdocs.pm/elixir/compatibility-and-deprecations.html#between-elixir-and-erlang-otp
         exclude:
-          - {otp: '24', elixir: '1.10'}
-          - {otp: '25', elixir: '1.10'}
-          - {otp: '25', elixir: '1.11'}
-          - {otp: '25', elixir: '1.12'}
+          - { otp: "24", elixir: "1.14" }
+          - { otp: "24", elixir: "1.18" }
+          - { otp: "25", elixir: "1.14" }
+          - { otp: "25", elixir: "1.15" }
+          - { otp: "25", elixir: "1.16" }
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
+        id: beam
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
           key: |
             ${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-build

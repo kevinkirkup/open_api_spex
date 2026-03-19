@@ -303,8 +303,10 @@ defmodule OpenApiSpex.ControllerSpecs do
   - Additional fields: There are other Operation fields that can be specified that are not
     described here. See `OpenApiSpex.Operation` for all the fields.
   """
-  @spec operation(action :: atom, spec :: map) :: any
+  @spec operation(action :: atom, spec :: Keyword.t()) :: any
   defmacro operation(action, spec) do
+    spec = Macro.postwalk(spec, &expand_alias(&1, __CALLER__))
+
     quote do
       @spec_attributes {unquote(action), operation_spec(__MODULE__, unquote(action), unquote(spec))}
 
@@ -313,6 +315,11 @@ defmodule OpenApiSpex.ControllerSpecs do
       end
     end
   end
+
+  defp expand_alias({:__aliases__, _, _} = alias, env),
+    do: Macro.expand(alias, %{env | function: {:__attr__, 3}})
+
+  defp expand_alias(other, _env), do: other
 
   @doc """
   Defines a list of tags that all operations in a controller will share.
@@ -359,15 +366,50 @@ defmodule OpenApiSpex.ControllerSpecs do
     end
   end
 
+  @operation_permitted_keys [
+    :callbacks,
+    :description,
+    :deprecated,
+    :external_docs,
+    :operation_id,
+    :parameters,
+    :request_body,
+    :responses,
+    :security,
+    :summary,
+    :tags
+  ]
+
   @doc """
   Define an Operation for a controller action.
 
   See `OpenApiSpex.ControllerSpecs` for usage and examples.
+
+  Permitted operation keys:
+
+  #{Enum.map_join(@operation_permitted_keys, "\n", fn k -> "* `#{k}`" end)}
+  * keys prefixed by `x-` for extensions
   """
   def operation_spec(_module, _action, nil = _spec), do: nil
   def operation_spec(_module, _action, false = _spec), do: nil
 
   def operation_spec(module, action, spec) do
+    validation_result =
+      spec
+      |> Enum.reject(fn {key, _val} -> extension_key?(key) end)
+      |> Keyword.validate(@operation_permitted_keys)
+
+    case validation_result do
+      {:ok, _spec} ->
+        :ok
+
+      {:error, unknown_keys} ->
+        raise ArgumentError,
+              "Unknown keys given to operation/2: #{inspect(unknown_keys)}. " <>
+                "Allowed keys are: #{inspect(@operation_permitted_keys)}, " <>
+                "and keys starting with 'x-'."
+    end
+
     spec = Map.new(spec)
     shared_tags = Module.get_attribute(module, :shared_tags, []) |> List.flatten()
 
@@ -379,7 +421,7 @@ defmodule OpenApiSpex.ControllerSpecs do
 
     extensions =
       spec
-      |> Enum.filter(fn {key, _val} -> is_atom(key) && String.starts_with?(to_string(key), "x-") end)
+      |> Enum.filter(fn {key, _val} -> extension_key?(key) end)
       |> Map.new(fn {key, value} -> {to_string(key), value} end)
 
     %Operation{
@@ -396,5 +438,9 @@ defmodule OpenApiSpex.ControllerSpecs do
       tags: OperationBuilder.build_tags(spec, %{tags: shared_tags}),
       extensions: extensions
     }
+  end
+
+  defp extension_key?(key) do
+    is_atom(key) && String.starts_with?(to_string(key), "x-")
   end
 end

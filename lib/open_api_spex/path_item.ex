@@ -52,8 +52,8 @@ defmodule OpenApiSpex.PathItem do
   Eg from the generated `__routes__` function in a Phoenix.Router module.
   """
   @type route ::
-          %{verb: atom, plug: atom, opts: any, metadata: any}
-          | %{verb: atom, plug: atom, plug_opts: any, metadata: any}
+          %{optional(:path) => String.t(), verb: atom, plug: atom, opts: any}
+          | %{optional(:path) => String.t(), verb: atom, plug: atom, plug_opts: any}
 
   @doc """
   Builds a PathItem struct from a list of routes that share a path.
@@ -73,16 +73,17 @@ defmodule OpenApiSpex.PathItem do
   defp from_valid_routes([]), do: nil
 
   defp from_valid_routes(routes) do
-    attrs =
-      routes
-      |> Enum.map(fn route ->
-        case Operation.from_route(route) do
-          nil -> nil
-          op -> {route.verb, op}
-        end
-      end)
-      |> Enum.filter(& &1)
-
-    struct(PathItem, attrs)
+    routes
+    |> Enum.map(fn route ->
+      case Operation.from_route(route) do
+        nil -> nil
+        op -> {route.verb, op}
+      end
+    end)
+    |> Enum.filter(& &1)
+    |> case do
+      [] -> nil
+      attrs -> struct(PathItem, attrs)
+    end
   end
 end

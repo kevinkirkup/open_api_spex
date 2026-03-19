@@ -71,6 +71,7 @@ defmodule OpenApiSpex.OpenApi do
   @callback spec() :: t
 
   @json_encoder Enum.find([Jason, Poison], &Code.ensure_loaded?/1)
+  @yaml_encoder nil
   @vendor_extensions ~w(
     x-struct
     x-validate
@@ -95,10 +96,14 @@ defmodule OpenApiSpex.OpenApi do
     defmodule YmlrEncoder do
       @moduledoc false
 
-      def encode(api_spec = %{}, _options) do
+      def encode(api_spec = %OpenApi{}, _options) do
         api_spec
         |> OpenApi.to_map()
         |> Ymlr.document()
+      end
+
+      def encode(api_spec = %{}, _options) do
+        Ymlr.document(api_spec)
       end
     end
 
@@ -116,9 +121,11 @@ defmodule OpenApiSpex.OpenApi do
     |> Stream.map(fn
       {:value, v} when object == Example -> {"value", to_map_example(v, opts)}
       {:example, v} -> {"example", to_map_example(v, opts)}
+      {:required, []} when object == Schema -> {"required", nil}
       {k, v} -> {to_string(k), to_map(v, opts)}
     end)
     |> Stream.filter(fn
+      {:required, []} when object == Schema -> false
       {k, _} when k in @vendor_extensions -> opts[:vendor_extensions]
       {_, nil} -> false
       _ -> true

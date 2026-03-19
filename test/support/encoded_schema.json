@@ -228,7 +228,8 @@
           "x-custom-info": {
             "codeowners": "team-rocker"
           }
-        }
+        },
+        "required": ["first_name"]
       },
       "DiscriminatorWithType": {
         "type": "object",
@@ -242,6 +243,9 @@
           {
             "$ref": "#/components/schemas/SpecialUser"
           }
+        ],
+        "required": [
+          "first_name"
         ]
       },
       "MetadataObject": {
@@ -271,6 +275,20 @@
             "type": "object"
           }
         ]
+      },
+      "Not": {
+        "not": {
+          "type": "string"
+        }
+      },
+      "CustomValidationDecoded": {
+        "type": "object",
+        "properties": {
+          "even_num": {
+            "type": "integer",
+            "x-validate": "OpenApiSpec.CastTest.CustomValidator.EvenInt"
+          }
+        }
       }
     },
     "links": {
@@ -394,6 +412,16 @@
         "x-custom-info": {
           "codeowners": "team-rocker"
         },
+        "servers": [
+          {
+            "description": "production",
+            "url": "https://example.com/examples"
+          },
+          {
+            "description": "staging",
+            "url": "https://staging.example.com/examples"
+          }
+        ],
         "operationId": "example-post-test",
         "callbacks": {
           "operationCallback": {

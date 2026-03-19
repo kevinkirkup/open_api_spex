@@ -42,6 +42,10 @@ defmodule OpenApiSpex.ControllerTest do
       assert %{responses: %{404 => _}} = @controller.open_api_operation(:update)
     end
 
+    test "has response as reference for HTTP 422" do
+      assert %{responses: %{422 => %Reference{}}} = @controller.open_api_operation(:update)
+    end
+
     test "has default response" do
       assert %{responses: %{:default => _}} = @controller.open_api_operation(:update)
     end
@@ -120,7 +124,7 @@ defmodule OpenApiSpex.ControllerTest do
 
     test "fails on both type and schema specified" do
       assert_raise ArgumentError, ~r/Both :type and :schema options were specified/, fn ->
-        @controller.open_api_operation(:non_exlusive_paramter_type_schema_docs)
+        @controller.open_api_operation(:non_exlusive_parameter_type_schema_docs)
       end
     end
   end

@@ -226,7 +226,7 @@ defmodule OpenApiSpex.OpenApi.Decode do
 
   defp to_struct(%{"anyOf" => _valid_schemas} = map, Schema) do
     Schema
-    |> struct_from_map(map)
+    |> struct_from_map(prepare_schema(map))
     |> prop_to_struct(:anyOf, Schemas)
     |> prop_to_struct(:discriminator, Discriminator)
     |> add_extensions(map)
@@ -234,7 +234,7 @@ defmodule OpenApiSpex.OpenApi.Decode do
 
   defp to_struct(%{"oneOf" => _valid_schemas} = map, Schema) do
     Schema
-    |> struct_from_map(map)
+    |> struct_from_map(prepare_schema(map))
     |> prop_to_struct(:oneOf, Schemas)
     |> prop_to_struct(:discriminator, Discriminator)
     |> add_extensions(map)
@@ -242,7 +242,7 @@ defmodule OpenApiSpex.OpenApi.Decode do
 
   defp to_struct(%{"allOf" => _valid_schemas} = map, Schema) do
     Schema
-    |> struct_from_map(map)
+    |> struct_from_map(prepare_schema(map))
     |> prop_to_struct(:allOf, Schemas)
     |> prop_to_struct(:discriminator, Discriminator)
     |> add_extensions(map)
@@ -267,7 +267,7 @@ defmodule OpenApiSpex.OpenApi.Decode do
   defp to_struct(%{"not" => _valid_schemas} = map, Schema) do
     Schema
     |> struct_from_map(map)
-    |> prop_to_struct(:not, Schemas)
+    |> prop_to_struct(:not, Schema)
     |> add_extensions(map)
   end
 
@@ -292,7 +292,7 @@ defmodule OpenApiSpex.OpenApi.Decode do
     |> prop_to_struct(:parameters, Parameters)
     |> prop_to_struct(:requestBody, RequestBody)
     |> prop_to_struct(:callbacks, Callbacks)
-    |> prop_to_struct(:servers, Server)
+    |> prop_to_struct(:servers, Servers)
     |> add_extensions(map)
   end
 
