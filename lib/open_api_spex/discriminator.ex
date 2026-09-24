@@ -22,7 +22,7 @@ defmodule OpenApiSpex.Discriminator do
   """
   @type t :: %__MODULE__{
           propertyName: String.t(),
-          mapping: %{String.t() => String.t()} | nil,
+          mapping: %{(String.t() | atom()) => String.t()} | nil,
           extensions: %{String.t() => any()} | nil
         }
 
@@ -49,7 +49,8 @@ defmodule OpenApiSpex.Discriminator do
     end
   end
 
-  @spec map_property_value(%{String.t() => String.t()} | nil, String.t()) :: String.t()
+  @spec map_property_value(%{(String.t() | atom()) => String.t()} | nil, String.t()) ::
+          String.t()
   defp map_property_value(nil, val), do: val
 
   defp map_property_value(mapping = %{}, val) do
